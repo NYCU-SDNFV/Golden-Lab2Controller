@@ -132,19 +132,22 @@ def grade_controller():
           "never install a flow whose action is FLOOD -- flood the *packet* (PacketOut), not the *flow*")
     check(r["leak_to_h3"] == 0, "A3: nothing leaked to h3 (%d)" % r["leak_to_h3"],
           "after learning, h1<->h2 unicast must go out one port only")
-    # relational: reactive first-packet penalty must stand out against the proactive table
-    p = load("proactive", required=False)
-    ratio, pratio = r["first_rtt_ratio"], (p or {}).get("first_rtt_ratio")
+    # relational: the reactive first-packet penalty must stand out against the
+    # modes where the first packet only pays for ARP (flood / normal / proactive).
+    ratio = r["first_rtt_ratio"]
+    base = {m: (load(m, required=False) or {}).get("first_rtt_ratio") for m in ("flood", "normal", "proactive")}
+    base = {m: v for m, v in base.items() if v}
     if ratio is None:
         fail("A3: could not compute the first-packet RTT ratio", "the ping produced fewer than 3 RTT samples")
-    elif pratio:
-        check(ratio > 2 * pratio,
-              "A3: first-packet RTT stands out (%.1fx the steady RTT vs %.1fx in proactive) -- this is the cost of reactive learning" % (ratio, pratio),
-              "in a reactive controller the FIRST packet must take the slow path (packet-in). "
-              "If the ratio is as small as proactive's, your controller is not on the path")
+    elif base:
+        bm = max(base, key=base.get)
+        check(ratio > 2 * base[bm],
+              "A3: first-packet RTT stands out (%.1fx the steady RTT, vs %.1fx in %s) -- the cost of reactive learning" % (ratio, base[bm], bm),
+              "in a reactive controller the FIRST packet must take the slow path (packet-in) and be visibly slower. "
+              "If the ratio is as small as in the other modes, your controller is not on the path of the first packet")
     else:
         check(ratio > 3, "A3: first-packet RTT stands out (%.1fx the steady RTT)" % ratio,
-              "run A4 as well; the grader compares this against the proactive table")
+              "run A1/A2/A4 as well; the grader compares this against their ARP-only first-packet cost")
 
 
 def grade_proactive():
