@@ -1,0 +1,11 @@
+# Lab 2 -- complete, nothing to change here. You solved this in Lab 0.
+services:
+  lab2:
+    build: .
+    container_name: lab2
+    privileged: true          # Mininet needs netns + veth; OVS writes /var/run
+    volumes:
+      - ./:/workspace
+    working_dir: /workspace
+    tty: true
+    stdin_open: true

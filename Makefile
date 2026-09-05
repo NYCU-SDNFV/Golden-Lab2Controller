@@ -1,37 +1,61 @@
-# SDNFV Golden Base — 共用 Makefile 骨架
-# 各 Lab 覆寫 build/up/down/lab-test，但 policy / test 兩個 target 不要改。
-SHELL := /usr/bin/env bash
+# Lab 2 -- SDN: OVS + your own learning-switch controller
+# Do not modify this file.
 
-.PHONY: help build up down shell logs clean policy lab-test test
+COMPOSE   ?= docker compose
+CONTAINER ?= lab2
+MODE      ?= controller
 
-help:
-	@echo "make build     建置環境"
-	@echo "make up        啟動環境"
-	@echo "make down      停止環境"
-	@echo "make test      跑完整檢查（policy + lab-test）"
-	@echo "make policy    只跑 Base 規範檢查"
-	@echo "make clean     清乾淨"
+.PHONY: all build up down policy test a1 a2 a3 a4 report hold shell logs clean
 
-build:      ## 各 Lab 覆寫
-	@echo "(base) 此 Lab 未定義 build"
-up:         ## 各 Lab 覆寫
-	@echo "(base) 此 Lab 未定義 up"
-down:       ## 各 Lab 覆寫
-	@echo "(base) 此 Lab 未定義 down"
-shell:      ## 各 Lab 覆寫
-	@echo "(base) 此 Lab 未定義 shell"
-logs:       ## 各 Lab 覆寫
-	@echo "(base) 此 Lab 未定義 logs"
-clean:      ## 各 Lab 覆寫
-	@echo "(base) 此 Lab 未定義 clean"
+all: up test
 
-# --- 以下由 Base 提供，請勿修改（.github/ 每次提交都會被還原） ---
+build:
+	$(COMPOSE) build
+
+up:
+	$(COMPOSE) up -d --build
+	@echo "waiting for $(CONTAINER) to be ready ..."
+	@sh tests/wait_ready.sh
+
+down:
+	-$(COMPOSE) down --remove-orphans
+
 policy:
 	@bash .github/policy/00_layout.sh
 	@bash .github/policy/01_integrity.sh
 
-lab-test:
-	@if [ -x .github/tests/run.sh ]; then bash .github/tests/run.sh; \
-	 else echo "(base) 此 Lab 未定義 lab-test"; fi
+# The full set, in the order the autograder runs them.
+test: policy
+	@sh tests/00_env.sh
+	@sh tests/10_a1_flood.sh
+	@sh tests/20_a2_normal.sh
+	@sh tests/30_a3_controller.sh
+	@sh tests/40_a4_proactive.sh
+	@sh tests/50_report.sh
+	@sh tests/60_git.sh
+	@echo ""
+	@echo "All Lab 2 checks passed."
 
-test: policy lab-test
+# One part at a time while you work.
+a1: ; @sh tests/10_a1_flood.sh
+a2: ; @sh tests/20_a2_normal.sh
+a3: ; @sh tests/30_a3_controller.sh
+a4: ; @sh tests/40_a4_proactive.sh
+report: ; @sh tests/50_report.sh
+
+# Bring a mode up and stay in the Mininet CLI (used at the checkpoint):
+#   make hold MODE=controller
+hold:
+	docker exec -it $(CONTAINER) python3 harness/run_mode.py $(MODE) --hold
+
+shell:
+	docker exec -it $(CONTAINER) bash
+
+logs:
+	-$(COMPOSE) ps
+	-$(COMPOSE) logs --no-color --tail=200
+
+clean:
+	-docker exec $(CONTAINER) sh -c 'pkill -f osken-manager; mn -c' >/dev/null 2>&1 || true
+	-$(COMPOSE) down -v --remove-orphans
+	-rm -rf results
