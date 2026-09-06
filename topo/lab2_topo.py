@@ -44,6 +44,11 @@ def build_net():
     net = Mininet(topo=Lab2Topo(), switch=UserspaceOVS, controller=None,
                   waitConnected=False)
     net.start()
+    # IPv6 off on the hosts: otherwise neighbour discovery / MLD chatter shows
+    # up as extra PACKET_INs and keeps the control channel busy, so the
+    # experiment would look different on every machine.
+    for h in HOSTS:
+        net.get(h).cmd("sysctl -q -w net.ipv6.conf.all.disable_ipv6=1 net.ipv6.conf.default.disable_ipv6=1")
     return net
 
 
