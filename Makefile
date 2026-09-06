@@ -1,11 +1,11 @@
-# Lab 2 -- SDN: OVS + your own learning-switch controller
+# Lab 2 -- SDN: OVS + your own OpenFlow controller
 # Do not modify this file.
 
 COMPOSE   ?= docker compose
 CONTAINER ?= lab2
 MODE      ?= controller
 
-.PHONY: all build up down policy test a1 a2 a3 a4 report hold shell logs clean
+.PHONY: all build up down policy test a0 a1 a2 a3 a4 report hold shell logs clean
 
 all: up test
 
@@ -27,9 +27,13 @@ policy:
 # The full set, in the order the autograder runs them.
 test: policy
 	@sh tests/00_env.sh
+	@sh tests/05_a0_reference.sh
 	@sh tests/10_a1_flood.sh
 	@sh tests/20_a2_normal.sh
-	@sh tests/30_a3_controller.sh
+	@sh tests/30_a3a_handshake.sh
+	@sh tests/31_a3b_packet_in.sh
+	@sh tests/32_a3c_flow_mod.sh
+	@sh tests/33_a3d_learning.sh
 	@sh tests/40_a4_proactive.sh
 	@sh tests/50_report.sh
 	@sh tests/60_git.sh
@@ -37,9 +41,10 @@ test: policy
 	@echo "All Lab 2 checks passed."
 
 # One part at a time while you work.
+a0: ; @sh tests/05_a0_reference.sh
 a1: ; @sh tests/10_a1_flood.sh
 a2: ; @sh tests/20_a2_normal.sh
-a3: ; @sh tests/30_a3_controller.sh
+a3: ; @sh tests/30_a3a_handshake.sh && sh tests/31_a3b_packet_in.sh && sh tests/32_a3c_flow_mod.sh && sh tests/33_a3d_learning.sh
 a4: ; @sh tests/40_a4_proactive.sh
 report: ; @sh tests/50_report.sh
 
@@ -56,6 +61,6 @@ logs:
 	-$(COMPOSE) logs --no-color --tail=200
 
 clean:
-	-docker exec $(CONTAINER) sh -c 'pkill -f osken-manager; mn -c' >/dev/null 2>&1 || true
+	-docker exec $(CONTAINER) sh -c 'pkill -f "osken-manager|harness/controller.py"; mn -c' >/dev/null 2>&1 || true
 	-$(COMPOSE) down -v --remove-orphans
-	-rm -rf results
+	-rm -rf results captures

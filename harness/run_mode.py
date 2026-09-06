@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Lab 2 measurement runner. Do not modify.
 
-    python3 harness/run_mode.py <flood|normal|controller|proactive> [--hold]
+    python3 harness/run_mode.py <flood|normal|reference|controller|proactive> [--hold]
 
 Builds the 3-host topology (topo/lab2_topo.py), configures s1 in the requested
 mode using *your* code (harness/modes.py, harness/controller.py), then runs
-one experiment:
+one experiment. `reference` is A0: the given reference controller
+(reference/refctl.py, os-ken) instead of yours -- same experiment, so you can
+see what a working controller says on the wire.
 
     1. h3 starts sniffing ICMP on its interface (it is the eavesdropper).
     2. h1 pings h2 six times.
@@ -14,7 +16,8 @@ one experiment:
        and how many packets were sent to the controller.
 
 Everything is written to results/<mode>.json and a one-line summary is
-printed. The autograder reads the same JSON with .github/grade/lab2_grade.py,
+printed. In the reference and controller modes the switch<->controller TCP
+conversation is also recorded to captures/<mode>.pcap (open it in Wireshark). The autograder reads the same JSON with .github/grade/lab2_grade.py,
 so what you see locally is what is graded.
 
 --hold keeps the network (and the controller) running and drops you into the
@@ -37,10 +40,13 @@ from harness import modes                                     # noqa: E402
 
 setLogLevel("warning")          # hide Mininet's '*** ...' progress chatter
 
-MODES = ("flood", "normal", "controller", "proactive")
+MODES = ("flood", "normal", "reference", "controller", "proactive")
+CONTROLLER_MODES = ("reference", "controller")
 CONTROLLER_PORT = 6653
+INACTIVITY_PROBE_MS = 2000      # make OVS send an ECHO_REQUEST quickly, so T2 is exercised
 PING_COUNT = 6
 RESULTS_DIR = "results"
+CAPTURE_DIR = "captures"
 
 
 def ofctl(s1, cmd, *args):
@@ -87,25 +93,41 @@ def wait_port(port, timeout=15):
     return False
 
 
-def start_controller(logpath):
-    """Start harness/controller.py under osken-manager. Returns the Popen,
-    or None if a controller is already listening on the port (we reuse it and
-    leave it running -- handy when you run osken-manager by hand to see its log)."""
+def start_controller(mode, logpath):
+    """Start the controller for `mode` and wait until it listens.
+    reference -> osken-manager reference/refctl.py (given, A0)
+    controller -> python3 harness/controller.py (yours, A3)
+    Returns the Popen, or None if something is already listening on the port
+    (we reuse it and leave it running -- handy when you run your controller by
+    hand in another terminal to watch its log)."""
     if wait_port(CONTROLLER_PORT, timeout=0.5):
         print("reusing the controller already listening on tcp:%d" % CONTROLLER_PORT)
         return None
-    subprocess.call("pkill -f osken-manager >/dev/null 2>&1", shell=True)
-    here = os.path.dirname(os.path.abspath(__file__))
-    app = os.path.join(here, "controller.py")
+    subprocess.call("pkill -f 'osken-manager|harness/controller.py' >/dev/null 2>&1", shell=True)
+    root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+    if mode == "reference":
+        cmd = ["osken-manager", "--ofp-tcp-listen-port", str(CONTROLLER_PORT),
+               os.path.join(root, "reference", "refctl.py")]
+    else:
+        cmd = [sys.executable, os.path.join(root, "harness", "controller.py"),
+               "--port", str(CONTROLLER_PORT), "-v"]
     log = open(logpath, "w")
-    proc = subprocess.Popen(
-        ["osken-manager", "--ofp-tcp-listen-port", str(CONTROLLER_PORT), app],
-        stdout=log, stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT)
     if not wait_port(CONTROLLER_PORT):
         proc.kill()
-        sys.exit("controller did not start listening on tcp:%d within 15s -- "
-                 "see %s" % (CONTROLLER_PORT, logpath))
+        sys.exit("controller did not start listening on tcp:%d within 15s -- see %s" % (CONTROLLER_PORT, logpath))
     return proc
+
+
+def start_capture(mode):
+    """Record the switch<->controller conversation with tcpdump (A0 decides where to listen)."""
+    iface, bpf = modes.capture_filter()
+    os.makedirs(CAPTURE_DIR, exist_ok=True)
+    path = os.path.join(CAPTURE_DIR, "%s.pcap" % mode)
+    proc = subprocess.Popen(["tcpdump", "-i", iface, "-U", "-w", path, bpf],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    time.sleep(1.0)                                 # let tcpdump attach before the switch connects
+    return proc, path
 
 
 def wait_connected(s1, timeout=15):
@@ -129,9 +151,10 @@ def apply_mode(net, mode, ctl_log):
         modes.normal(s1)
     elif mode == "proactive":
         modes.proactive(s1, hosts)
-    elif mode == "controller":
-        proc = start_controller(ctl_log)
-        s1.cmd("ovs-vsctl set-controller %s tcp:127.0.0.1:%d" % (SWITCH, CONTROLLER_PORT))
+    elif mode in CONTROLLER_MODES:
+        proc = start_controller(mode, ctl_log)
+        s1.cmd("ovs-vsctl set-controller %s tcp:127.0.0.1:%d -- set controller %s inactivity_probe=%d"
+               % (SWITCH, CONTROLLER_PORT, SWITCH, INACTIVITY_PROBE_MS))
         if not wait_connected(s1):
             print("WARN: s1 did not connect to the controller within 15s")
         # give the controller a moment to install its initial flows
@@ -139,6 +162,8 @@ def apply_mode(net, mode, ctl_log):
             if flow_entries(s1):
                 break
             time.sleep(0.25)
+        # stay idle long enough for OVS to send at least one ECHO_REQUEST
+        time.sleep(INACTIVITY_PROBE_MS / 1000.0 + 1.5)
     return proc
 
 
@@ -211,14 +236,20 @@ def main():
     subprocess.call("mn -c >/dev/null 2>&1", shell=True)
 
     net = build_net()
-    proc = None
+    proc = cap = None
     try:
         try:
-            proc = apply_mode(net, mode, os.path.join(RESULTS_DIR, "controller.log"))
+            if mode in CONTROLLER_MODES:
+                cap, cap_path = start_capture(mode)
+            proc = apply_mode(net, mode, os.path.join(RESULTS_DIR, "%s.log" % mode))
         except NotImplementedError as e:
             print("unfinished: %s" % e)
             sys.exit(2)
         r = measure(net, mode)
+        if cap:
+            time.sleep(1.0)
+            cap.terminate(); cap.wait()
+            r["pcap"] = cap_path
         with open(os.path.join(RESULTS_DIR, "%s.json" % mode), "w") as f:
             json.dump(r, f, indent=2)
         print(summary(r))
@@ -230,6 +261,8 @@ def main():
             print("\n--hold: network is up. 'exit' to tear down.")
             CLI(net)
     finally:
+        if cap and cap.poll() is None:
+            cap.terminate()
         if proc:
             proc.terminate()
         net.stop()

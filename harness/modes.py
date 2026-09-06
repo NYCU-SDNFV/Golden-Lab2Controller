@@ -19,6 +19,19 @@ def ofctl(s1, cmd, *args):
     return s1.cmd("ovs-ofctl -O OpenFlow13 %s %s %s" % (cmd, s1.name, " ".join(args)))
 
 
+def capture_filter():
+    """A0 -- where does the switch talk to the controller?
+
+    harness/run_mode.py records the switch<->controller conversation with
+    tcpdump so you can open it in Wireshark. Tell it where to listen: return
+    (interface_name, bpf_filter). The switch is s1 inside this container, the
+    controller is a process in the same container listening on TCP port 6653.
+    The filter must capture that conversation and nothing else (no ICMP from
+    the hosts, no ARP). `man pcap-filter` has the syntax.
+    """
+    raise NotImplementedError("TODO A0 -- read the docstring above capture_filter()")
+
+
 def flood(s1):
     """A1 -- hub mode: every frame goes out every port except the one it came in on.
 

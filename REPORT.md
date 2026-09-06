@@ -1,4 +1,4 @@
-# Lab 2 Report — SDN: OVS + a learning-switch controller
+# Lab 2 Report — SDN: OVS + your own OpenFlow controller
 
 **Student ID:** TODO  **Name:** TODO
 
@@ -6,22 +6,27 @@
 > labels). Replace every TODO. Numbers must come from *your* `results/*.json`;
 > the grader cross-checks them. Write in English.
 
-## Part A — the four modes, measured
+## Part A — the five runs, measured
 
-Fill in from `results/<mode>.json` (`make a1` … `make a4` print the same numbers).
+Fill in from `results/<mode>.json` (`make a0` … `make a4` print the same numbers).
 
 | Mode       | OpenFlow flows | FDB entries | leak to h3 (ICMP pkts) | first-RTT ratio | packet-ins |
 |------------|----------------|-------------|------------------------|-----------------|------------|
 | flood      | TODO           | TODO        | TODO                   | TODO            | TODO       |
 | normal     | TODO           | TODO        | TODO                   | TODO            | TODO       |
+| reference  | TODO           | TODO        | TODO                   | TODO            | TODO       |
 | controller | TODO           | TODO        | TODO                   | TODO            | TODO       |
 | proactive  | TODO           | TODO        | TODO                   | TODO            | TODO       |
+
+**A.0 The wire.** Open `captures/reference.pcap` in Wireshark (it decodes OpenFlow) and list the message sequence of the handshake up to and including the first `FLOW_MOD`, with direction and `xid`. Then answer: (a) which messages are request/reply pairs and how do you know; (b) the reference sends `FLOW_MOD`s of two different lengths — decode both `ofp_match` structures byte by byte and explain the difference; (c) what is the `xid` of `PACKET_IN` and why.
+
+TODO
 
 **A.1 Where does the forwarding state live in each mode?** (switch FDB / OpenFlow table / controller memory / nowhere) — one line per mode, and say *who* wrote it there.
 
 TODO
 
-**A.2 The first packet.** Explain the *first-RTT ratio* column: why does the `controller` row differ from `proactive`, and what exactly happens to the first ICMP request in each of the four modes? Use the `packet-ins` column and `results/controller.log`.
+**A.2 The first packet.** Explain the *first-RTT ratio* column: what exactly happens to the first ICMP request in each mode, and why do `reference`/`controller` differ from `proactive`? Then compare `reference` with `controller`: they exchange the *same* messages (check the captures) — if their first-RTT ratios differ by an order of magnitude, find out why. Wireshark's time column on `captures/controller.pcap` and the number of TCP segments per PACKET_IN are the clues; name the mechanism and the one-line fix.
 
 TODO
 
