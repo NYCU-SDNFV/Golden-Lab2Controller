@@ -53,3 +53,18 @@ TODO
 **B.3 What would you change in your controller** so that MAC move does *not* leave a stale flow behind? Describe the mechanism (you do not have to implement it — yet).
 
 TODO
+
+---
+
+## Part C — Design Problem: 9-Switch Ring Shortest-Path Controller
+
+> Fill this in after completing `harness/sp_controller.py`. If you did not
+> attempt Part C, leave the TODOs — no points are deducted.
+
+**C.1 Design overview.** Describe how your controller satisfies each requirement. In particular: how do you avoid broadcast storm on a ring? How do you ensure unicast stays on the data plane after setup?
+
+TODO
+
+**C.2 Scalability.** A new host h10 is plugged into s3 (on a new port). Without implementing it, describe what your controller would need to do to handle this. Which flows change? Which don't?
+
+TODO
