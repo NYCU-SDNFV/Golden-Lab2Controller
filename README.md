@@ -148,13 +148,15 @@ dump-flows s1`, `sh ovs-appctl fdb/show s1`, `h3 tcpdump -nn -c 5 icmp`,
 | A0 | `tests/05_a0_reference.sh` | 5 | `capture_filter()` points tcpdump at the control channel: the capture holds HELLO both ways, PACKET_IN and FLOW_MOD |
 | A1 | `tests/10_a1_flood.sh` | 5 | ping works **and** h3 sees the traffic; a flood action is installed |
 | A2 | `tests/20_a2_normal.sh` | 5 | `NORMAL` in use, FDB learned h1/h2, 0 leak, no hand-written `dl_dst` flows |
-| A3a | `tests/30_a3a_handshake.sh` | 10 | stdlib-only imports; HELLO answered; FEATURES_REQUEST/REPLY with matching `xid`; every ECHO_REQUEST answered with the same `xid` and payload; still connected at the end; no ERROR about handshake messages |
-| A3b | `tests/31_a3b_packet_in.sh` | 10 | PACKET_INs arrive and (almost) every one gets a PACKET_OUT; no ERROR about your PACKET_OUTs; ping works |
-| A3c | `tests/32_a3c_flow_mod.sh` | 10 | FLOW_MODs sent and none rejected; table-miss flow present; `dl_dst` flows with the right ports |
+| A3a | `tests/30_a3a_handshake.sh` | 5 | stdlib-only imports; HELLO answered; FEATURES_REQUEST/REPLY with matching `xid`; every ECHO_REQUEST answered with the same `xid` and payload; still connected at the end; no ERROR about handshake messages |
+| A3b | `tests/31_a3b_packet_in.sh` | 5 | PACKET_INs arrive and (almost) every one gets a PACKET_OUT; no ERROR about your PACKET_OUTs; ping works |
+| A3c | `tests/32_a3c_flow_mod.sh` | 5 | FLOW_MODs sent and none rejected; table-miss flow present; `dl_dst` flows with the right ports |
 | A3d | `tests/33_a3d_learning.sh` | 15 | 0 leak; no `NORMAL`; no flow that floods; learned flows installed *after* the first PACKET_IN (reactive, not pre-programmed) |
 | A4 | `tests/40_a4_proactive.sh` | 5 | ping works (yes, ARP!), one flow per host, no controller, no `NORMAL`, 0 leak *including the first packet* |
 | B | `tests/50_report.sh` | 10 | `REPORT.md` tables complete, numbers match **your** results, all failure-mode cells filled, `ai-usage.md` filled |
-| — | `tests/60_git.sh` | 5 | ≥ 3 commits of your own, `.gitignore` tracked, no litter |
+| — | `tests/60_git.sh` | 0 | ≥ 3 commits of your own, `.gitignore` tracked, no litter — not scored, but still run |
+| C1 | `tests/70_c_ring.sh` | 10 | 9-switch ring: pingall passes, unicast flows follow the shortest path, no leak, no storm |
+| C2 | `tests/71_c_ring11.sh` | 10 | 11-switch ring with random host MACs: same checks — nothing hardcoded |
 
 The A3 checks read the **capture**, not your log: what counts is what the
 switch actually received and accepted. Absolute latencies are never graded —
@@ -213,43 +215,47 @@ If you wrote `harness/controller.py` yourself and can explain every line,
 nothing at the checkpoint will surprise you. If you cannot, the take-home
 part will be re-examined.
 
-## 7. Part C — Design Problem: Multi-Switch Shortest-Path Controller (bonus / checkpoint prep)
+## 7. Part C — Design Problem: Multi-Switch Shortest-Path Controller (20 points)
 
 Your Part A controller manages **one** switch. Part C is a **design problem**:
 nine switches in a ring, and your controller must figure everything out from
-scratch. This is not separately autograded — it prepares you for the
-checkpoint.
+scratch. It is worth 20 of the 100 autograded points (C1 and C2, 10 each) and
+it is the main preparation for the checkpoint.
 
 ### Requirements
 
-1. **Controller 開機時不知道任何事** — 不知道哪些 switch 連在一起、不知道 host 在哪裡、不知道拓樸長什麼樣。
-2. **Unicast 封包必須走最短路徑** — 不允許繞路。s1→s5 必須是 4 hops，不能是 5。
-3. **不能有任何 broadcast storm 的機會** — ring topology 上 naive flood 會造成無限迴圈。你的設計在任何階段都不能發生 storm。
-4. **任意 host 之間 ping 都要通** — 包含 ARP。
-5. **一旦路徑建立，所有封包必須走 data plane** — controller 不再參與轉發。每個 unicast 封包都走 switch 上安裝好的 flow，不經過 controller。
-6. **設計必須能擴展到任意新增 host 的情境** — 不需要實作，但報告要說明你的設計如何處理一個之前沒見過的 host 出現在某個 switch 上。
+1. **The controller knows nothing at boot** — it does not know which switches are connected to each other, where the hosts are, or what the topology looks like.
+2. **Unicast packets must take the shortest path** — no detours. s1→s5 must be 4 hops, not 5.
+3. **There must be no chance of a broadcast storm** — on a ring topology a naive flood loops forever. Your design must not allow a storm at any stage.
+4. **Any host must be able to ping any other host** — including ARP.
+5. **Once a path is established, every packet must stay on the data plane** — the controller no longer takes part in forwarding. Each unicast packet follows a flow installed on the switch and never reaches the controller.
+6. **The design must scale to hosts being added arbitrarily** — you do not have to implement this, but your report must explain how your design handles a previously unseen host appearing on some switch.
+
+### Topology
 
 ```
     9 switches in a ring, 9 hosts (h1..h9)
 
-          h1                      Port layout (all switches):
-          |                         port 1 = host
-         s1                         port 2 = clockwise neighbour
-        /    \                      port 3 = counter-clockwise
-      s9      s2
-      |        |                  Max shortest path = 4 hops (floor(9/2))
-      s8      s3
-      |        |                  s1→s5: clockwise  s1→s2→s3→s4→s5 = 4 hops ✓
-      s7      s4                  s1→s5: counter-CW s1→s9→s8→s7→s6→s5 = 5 hops ✗
-        \    /
-         s6--s5
+               h1                 Port layout (all switches):
+               |                    port 1 = host
+              s1                    port 2 = clockwise neighbour
+             /    \                 port 3 = counter-clockwise
+      h9---s9      s2---h2
+           |        |             Max shortest path = 4 hops (floor(9/2))
+      h8---s8      s3---h3
+           |        |             s1→s5: clockwise  s1→s2→s3→s4→s5 = 4 hops ✓
+      h7---s7      s4---h4        s1→s5: counter-CW s1→s9→s8→s7→s6→s5 = 5 hops ✗
+             \    /
+              s6--s5
+              |   |
+              h6  h5
 ```
 
 ### What you change
 
 | File | What to do |
 |---|---|
-| `harness/sp_controller.py` | Implement `on_switch_ready()` and `on_packet_in()`. The select() loop, handshake, and OpenFlow encoding/decoding helpers are given — they are the same code from Part A3. Everything else (topology discovery, host learning, path computation, flow installation, broadcast handling) is your design. |
+| `harness/sp_controller.py` | Implement `on_switch_ready()` and `on_packet_in()`. The select() loop, handshake, and OpenFlow encoding/decoding helpers are given — they are the same code from Part A3. Everything else (topology discovery, host learning, path computation, flow installation, broadcast handling) is your design. You may also rewrite the whole file from scratch if you prefer — the given structure is a convenience, not a requirement. |
 
 `topo/ring_topo.py` and `topo/ring11_topo.py` are given and **must not be modified**.
 
@@ -278,7 +284,8 @@ Your controller is tested on **two** topologies:
 | C1 | `ring_topo.py` | 9 | sequential (`00:...:01`–`09`) | pingall, shortest-path flows, no unicast leak |
 | C2 | `ring11_topo.py` | 11 | **random (different every run)** | same — your controller must not hardcode switch count or MAC patterns |
 
-Your controller receives `--num-switches N` on the command line. Do not assume N=9.
+Your controller must discover the topology itself — do not assume N=9. You may
+assume **N < 20**; the ring is never larger than that.
 
 ### What makes this a design problem
 

@@ -5,7 +5,7 @@ COMPOSE   ?= docker compose
 CONTAINER ?= lab2
 MODE      ?= controller
 
-.PHONY: all build up down policy test a0 a1 a2 a3 a4 report hold shell logs clean
+.PHONY: all build up down policy test a0 a1 a2 a3 a4 report c hold shell logs clean
 
 all: up test
 
@@ -37,6 +37,8 @@ test: policy
 	@sh tests/40_a4_proactive.sh
 	@sh tests/50_report.sh
 	@sh tests/60_git.sh
+	@sh tests/70_c_ring.sh
+	@sh tests/71_c_ring11.sh
 	@echo ""
 	@echo "All Lab 2 checks passed."
 
@@ -47,6 +49,7 @@ a2: ; @sh tests/20_a2_normal.sh
 a3: ; @sh tests/30_a3a_handshake.sh && sh tests/31_a3b_packet_in.sh && sh tests/32_a3c_flow_mod.sh && sh tests/33_a3d_learning.sh
 a4: ; @sh tests/40_a4_proactive.sh
 report: ; @sh tests/50_report.sh
+c: ; @sh tests/70_c_ring.sh && sh tests/71_c_ring11.sh
 
 # Bring a mode up and stay in the Mininet CLI (used at the checkpoint):
 #   make hold MODE=controller
