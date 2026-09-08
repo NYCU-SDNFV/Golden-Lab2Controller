@@ -1,8 +1,8 @@
 #!/bin/sh
-# Check Part C bonus -- 11-switch ring with random MACs. Do not modify.
+# Check Part B -- 11-switch ring with random MACs. Do not modify.
 # Tests that the controller does not hardcode switch count or MAC patterns.
 . "$(dirname "$0")/lib.sh"
-banner "check C2: 11-switch ring (random MACs)"
+banner "check B2: 11-switch ring (random MACs)"
 
 require_container
 

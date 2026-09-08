@@ -1,7 +1,7 @@
 #!/bin/sh
-# Check Part C -- 9-switch ring shortest-path controller. Do not modify.
+# Check Part B -- 9-switch ring shortest-path controller. Do not modify.
 . "$(dirname "$0")/lib.sh"
-banner "check C1: 9-switch ring (sequential MACs)"
+banner "check B1: 9-switch ring (sequential MACs)"
 
 require_container
 

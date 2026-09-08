@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Part C grader: ring shortest-path verification.
+"""Part B grader: ring shortest-path verification.
 
 Runs inside the container. Parameterised by --num and --macs so the same
 grader works for the 9-switch and 11-switch (random MAC) rings.

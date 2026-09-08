@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Lab 2, Part C -- 9-switch ring topology: 9 switches, 9 hosts.
+"""Lab 2, Part B -- 9-switch ring topology: 9 switches, 9 hosts.
 
               h1
               |

@@ -34,13 +34,27 @@ TODO
 
 TODO
 
-## Part B — design judgement and failure modes
+## Part B — Design Problem: 9-Switch Ring Shortest-Path Controller
 
-**B.1 Which mode for which network?** For each of: (a) a fixed 3-node lab bench, (b) a campus access network where laptops move, (c) a datacenter pod with a policy requirement ("host X may only talk to Y") — pick a mode and defend it with numbers from your table (flows, leak, first-packet cost, state location). A wrong pick with good reasoning scores better than a right pick with none.
+> Fill this in after completing `harness/sp_controller.py`.
+
+**B.1 Design overview.** Describe how your controller satisfies each requirement. In particular: how do you avoid broadcast storm on a ring? How do you ensure unicast stays on the data plane after setup?
 
 TODO
 
-**B.2 Failure modes.** Predict the behaviour of each mode. You are strongly encouraged to *test* at least one cell with `make hold MODE=<mode>` and describe what you saw — the checkpoint will ask you to do exactly this live.
+**B.2 Scalability.** A new host h10 is plugged into s3 (on a new port). Without implementing it, describe what your controller would need to do to handle this. Which flows change? Which don't?
+
+TODO
+
+---
+
+## Part C — design judgement and failure modes
+
+**C.1 Which mode for which network?** For each of: (a) a fixed 3-node lab bench, (b) a campus access network where laptops move, (c) a datacenter pod with a policy requirement ("host X may only talk to Y") — pick a mode and defend it with numbers from your table (flows, leak, first-packet cost, state location). A wrong pick with good reasoning scores better than a right pick with none.
+
+TODO
+
+**C.2 Failure modes.** Predict the behaviour of each mode. You are strongly encouraged to *test* at least one cell with `make hold MODE=<mode>` and describe what you saw — the checkpoint will ask you to do exactly this live.
 
 | Scenario         | flood | normal (NORMAL) | controller (yours) / proactive |
 |------------------|-------|-----------------|--------------------------------|
@@ -50,21 +64,6 @@ TODO
 
 *MAC move* = a host is re-plugged into another switch port. *MAC flooding* = an attacker sends frames from thousands of random source MACs. *Controller down* = the controller process dies while hosts keep talking (think about `fail_mode` `secure` vs `standalone`).
 
-**B.3 What would you change in your controller** so that MAC move does *not* leave a stale flow behind? Describe the mechanism (you do not have to implement it — yet).
-
-TODO
-
----
-
-## Part C — Design Problem: 9-Switch Ring Shortest-Path Controller
-
-> Fill this in after completing `harness/sp_controller.py`. If you did not
-> attempt Part C, leave the TODOs — no points are deducted.
-
-**C.1 Design overview.** Describe how your controller satisfies each requirement. In particular: how do you avoid broadcast storm on a ring? How do you ensure unicast stays on the data plane after setup?
-
-TODO
-
-**C.2 Scalability.** A new host h10 is plugged into s3 (on a new port). Without implementing it, describe what your controller would need to do to handle this. Which flows change? Which don't?
+**C.3 What would you change in your controller** so that MAC move does *not* leave a stale flow behind? Describe the mechanism (you do not have to implement it — yet).
 
 TODO

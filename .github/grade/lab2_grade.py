@@ -432,9 +432,9 @@ def grade_report():
               "report: %s row flow count matches your measurement (%s vs %d)" % (mode, cells[0], r["openflow_flows"]),
               "copy the flow count from results/%s.json" % mode)
 
-    # Part B failure-mode table: 3 scenarios x 3 modes, no empty cells
+    # Part C failure-mode table: 3 scenarios x 3 modes, no empty cells
     frows = parse_table_rows(text, {"mac move", "mac flooding", "controller down"})
-    check(len(frows) == 3, "report: Part B failure-mode table has the three scenario rows (%d found)" % len(frows),
+    check(len(frows) == 3, "report: Part C failure-mode table has the three scenario rows (%d found)" % len(frows),
           "rows must be labelled 'MAC move', 'MAC flooding', 'controller down'")
     empty = sum(1 for cells in frows.values() for c in cells[:3] if len(c) < 8)
     check(len(frows) == 3 and empty == 0, "report: every failure-mode cell has content",

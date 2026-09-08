@@ -21,9 +21,9 @@ yourself**: a Python program with nothing but `socket` and `struct` that
 accepts the switch's TCP connection, completes the handshake, keeps the
 connection alive, decodes the packets the switch sends up, and encodes the
 flow entries and packets it sends down. In Part A, the application on top is a learning switch, so you can focus on
-the protocol bytes. Part B asks you to analyse your measurements and failure
-modes. Part C extends the lab to a multi-switch shortest-path controller,
-where you design how the network discovers and forwards traffic.
+the protocol bytes. Part B extends the lab to a multi-switch shortest-path
+controller, where you design how the network discovers and forwards traffic.
+Part C asks you to analyse your measurements and failure modes.
 
 ### Part A — Single-switch forwarding
 
@@ -59,16 +59,16 @@ from a switch. The switch starts with **no controller and an empty table**; an
 OpenFlow 1.3 switch drops what matches nothing, so nothing works until your
 code says how.
 
-### Part C — Multi-switch shortest-path controller
+### Part B — Multi-switch shortest-path controller
 
-Your Part A controller manages **one** switch. Part C is a **design problem**:
+Your Part A controller manages **one** switch. Part B is a **design problem**:
 nine switches in a ring, and your controller must figure everything out from
-scratch. It is worth 20 of the 100 autograded points (C1 and C2, 10 each) and
+scratch. It is worth 20 of the 100 autograded points (B1 and B2, 10 each) and
 it is the main preparation for the checkpoint.
 
 #### Requirements
 
-1. **The controller knows nothing at boot** — it does not know which switches are connected to each other, where the hosts are, or what the topology looks like.
+1. **The controller knows nothing at boot** — it does not know which switches are connected to each other, which ports connect to hosts or other switches, where the hosts are, or what the topology looks like.
 2. **Unicast packets must take the shortest path** — no detours. s1→s5 must be 4 hops, not 5.
 3. **There must be no chance of a broadcast storm** — on a ring topology a naive flood loops forever. Your design must not allow a storm at any stage.
 4. **Any host must be able to ping any other host** — including ARP.
@@ -119,7 +119,7 @@ about:
 | `harness/modes.py` | Four small functions: `capture_filter()` (A0), `flood()`, `normal()`, `proactive()`. |
 | `harness/controller.py` | **The lab.** Ten `TODO`s, `T1`–`T9`: HELLO reply, ECHO reply, FEATURES request/reply, PACKET_IN decoding (fixed fields, OXM match TLVs, Ethernet header), FLOW_MOD and PACKET_OUT encoding, and the learning logic that ties them together. The TCP server loop, message framing, constants and an ERROR decoder are given. |
 | `harness/sp_controller.py` | Implement `on_switch_ready()` and `on_packet_in()`. The select() loop, handshake, and OpenFlow encoding/decoding helpers are given — they are the same code from Part A3. Everything else (topology discovery, host learning, path computation, flow installation, broadcast handling) is your design. You may also rewrite the whole file from scratch if you prefer — the given structure is a convenience, not a requirement. |
-| `REPORT.md` | Tables from your own `results/*.json`, the wire analysis (A.0), Part B, and your Part C explanation of how to handle new hosts. Keep the table row labels — the grader parses them. |
+| `REPORT.md` | Tables from your own `results/*.json`, the wire analysis (A.0), your Part B explanation of how to handle new hosts, and Part C. Keep the table row labels — the grader parses them. |
 | `ai-usage.md` | How you used AI tools (or that you did not). |
 
 Everything else — `Dockerfile`, `docker-compose.yml`, `Makefile`, `topo/`,
@@ -139,6 +139,8 @@ make up                       # build + start the container (as in Lab 0)
 make a0                       # run the reference controller, record captures/reference.pcap
 make a1  make a2  make a4     # the one-rule modes
 make a3                       # run YOUR controller: A3a handshake -> A3b decode -> A3c encode -> A3d behaviour
+make b                        # run both Part B ring checks
+make c                        # run the Part C report check (same as make report)
 make report                   # cross-check REPORT.md against your results
 make test                     # everything, in autograder order
 make hold MODE=controller     # bring a mode up and stay in the Mininet CLI
@@ -168,8 +170,8 @@ hints; they were written for the exact mistake you are about to make.
    the switch answers with `OFPT_ERROR`, the given `decode_error()` prints
    what it objected to, and `captures/controller.pcap` sits right next to the
    reference capture for a byte-by-byte comparison.
-4. `harness/sp_controller.py` for Part C. Use the ring workflow below to
-   develop and inspect your design; `make test` includes both C1 and C2.
+4. `harness/sp_controller.py` for Part B. Use the ring workflow below to
+   develop and inspect your design; `make test` includes both B1 and B2.
 5. `REPORT.md` and `ai-usage.md`, then `make test`.
 
 ### Running the Part A controller by hand
@@ -184,7 +186,7 @@ Inside the Mininet CLI: `h1 ping -c 3 h2`, `sh ovs-ofctl -O OpenFlow13
 dump-flows s1`, `sh ovs-appctl fdb/show s1`, `h3 tcpdump -nn -c 5 icmp`,
 `sh tcpdump -i lo -nn port 6653`.
 
-### Running the Part C controller by hand
+### Running the Part B controller by hand
 
 ```bash
 # Terminal 1: start your shortest-path controller
@@ -252,24 +254,24 @@ TLV type 0 — End of LLDPDU:
 | A3c | `tests/32_a3c_flow_mod.sh` | 5 | FLOW_MODs sent and none rejected; table-miss flow present; `dl_dst` flows with the right ports |
 | A3d | `tests/33_a3d_learning.sh` | 15 | 0 leak; no `NORMAL`; no flow that floods; learned flows installed *after* the first PACKET_IN (reactive, not pre-programmed) |
 | A4 | `tests/40_a4_proactive.sh` | 5 | ping works (yes, ARP!), one flow per host, no controller, no `NORMAL`, 0 leak *including the first packet* |
-| B | `tests/50_report.sh` | 10 | `REPORT.md` tables complete, numbers match **your** results, all failure-mode cells filled, `ai-usage.md` filled |
+| B1 | `tests/50_b_ring.sh` | 10 | 9-switch ring: pingall passes, unicast flows follow the shortest path, no leak, no storm |
+| B2 | `tests/51_b_ring11.sh` | 10 | 11-switch ring with random host MACs: same checks — nothing hardcoded |
 | — | `tests/60_git.sh` | 0 | ≥ 3 commits of your own, `.gitignore` tracked, no litter — not scored, but still run |
-| C1 | `tests/70_c_ring.sh` | 10 | 9-switch ring: pingall passes, unicast flows follow the shortest path, no leak, no storm |
-| C2 | `tests/71_c_ring11.sh` | 10 | 11-switch ring with random host MACs: same checks — nothing hardcoded |
+| C | `tests/70_report.sh` | 10 | `REPORT.md` tables complete, numbers match **your** results, all failure-mode cells filled, `ai-usage.md` filled |
 
 The A3 checks read the **capture**, not your log: what counts is what the
 switch actually received and accepted. Absolute latencies are never graded —
 they differ between laptops and the CI runner — but they are recorded, and
 `REPORT.md` asks about them.
 
-### Part C test topologies
+### Part B test topologies
 
 Your controller is tested on **two** topologies:
 
 | Test | Topology | Switches | Host MACs | What it checks |
 |---|---|---|---|---|
-| C1 | `ring_topo.py` | 9 | sequential (`00:...:01`–`09`) | pingall, shortest-path flows, no unicast leak |
-| C2 | `ring11_topo.py` | 11 | **random (different every run)** | same — your controller must not hardcode switch count or MAC patterns |
+| B1 | `ring_topo.py` | 9 | sequential (`00:...:01`–`09`) | pingall, shortest-path flows, no unicast leak |
+| B2 | `ring11_topo.py` | 11 | **random (different every run)** | same — your controller must not hardcode switch count or MAC patterns |
 
 ## 5. Things that will bite you
 
@@ -295,7 +297,7 @@ Your controller is tested on **two** topologies:
    switch.** The flow you install applies to the *next* packet; this one needs
    a PACKET_OUT or it is lost.
 9. **Match on `eth_dst` only and MAC move will leave a stale flow.** The
-   skeleton does exactly that on purpose. `REPORT.md` B.3 asks how you would
+   skeleton does exactly that on purpose. `REPORT.md` C.3 asks how you would
    fix it; the checkpoint asks you to do it — which means encoding two more
    OXM fields and a `FLOW_MOD` with `command=DELETE`.
 10. **Your first packet is slow. Slower than the reference's.** Same messages,

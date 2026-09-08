@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Part C bonus test -- 11-switch ring with random MACs.
+"""Part B test -- 11-switch ring with random MACs.
 
 Same structure as ring_topo.py but with 11 switches and random MACs generated
 at startup. Tests that the controller does not hardcode the number of switches

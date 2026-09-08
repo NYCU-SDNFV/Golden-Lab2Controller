@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Lab 2, Part C -- shortest-path controller for the 9-switch ring.
+"""Lab 2, Part B -- shortest-path controller for the 9-switch ring.
 
 No framework. Only `socket`, `struct` and `select`.
 
@@ -266,7 +266,7 @@ class SPController:
 
 # ---------------------------------------------------------------------------
 def main():
-    ap = argparse.ArgumentParser(description="Lab 2 Part C: shortest-path controller")
+    ap = argparse.ArgumentParser(description="Lab 2 Part B: shortest-path controller")
     ap.add_argument("--port", type=int, default=6653)
     ap.add_argument("-n", "--num-switches", type=int, default=9)
     ap.add_argument("-v", "--verbose", action="store_true")
