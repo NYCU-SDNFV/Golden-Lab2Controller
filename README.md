@@ -2,8 +2,8 @@
 
 **SDNFV (CSIC30127), 115-1 — NYCU Institute of Network Engineering**
 
-> **Grading.** 100 autograded points (the take-home part, 40 % of the lab grade
-> — AI tools allowed) plus an **in-person checkpoint and viva** (60 % — proctored,
+> **Grading.** 100 autograded points (the take-home part, 50 % of the lab grade
+> — AI tools allowed) plus an **in-person checkpoint and viva** (50 % — proctored,
 > no personal AI). Every autograded point is visible: `make test` runs exactly
 > what the autograder runs.
 >
@@ -20,9 +20,12 @@ OpenFlow is the protocol between an SDN controller and a switch. Frameworks
 yourself**: a Python program with nothing but `socket` and `struct` that
 accepts the switch's TCP connection, completes the handshake, keeps the
 connection alive, decodes the packets the switch sends up, and encodes the
-flow entries and packets it sends down. The application on top is the
-simplest one there is — a learning switch — so that all of the difficulty is
-in the bytes, where it belongs.
+flow entries and packets it sends down. In Part A, the application on top is a learning switch, so you can focus on
+the protocol bytes. Part B asks you to analyse your measurements and failure
+modes. Part C extends the lab to a multi-switch shortest-path controller,
+where you design how the network discovers and forwards traffic.
+
+### Part A — Single-switch forwarding
 
 To see what your controller changes, the same traffic is forwarded five ways:
 
@@ -56,13 +59,67 @@ from a switch. The switch starts with **no controller and an empty table**; an
 OpenFlow 1.3 switch drops what matches nothing, so nothing works until your
 code says how.
 
+### Part C — Multi-switch shortest-path controller
+
+Your Part A controller manages **one** switch. Part C is a **design problem**:
+nine switches in a ring, and your controller must figure everything out from
+scratch. It is worth 20 of the 100 autograded points (C1 and C2, 10 each) and
+it is the main preparation for the checkpoint.
+
+#### Requirements
+
+1. **The controller knows nothing at boot** — it does not know which switches are connected to each other, where the hosts are, or what the topology looks like.
+2. **Unicast packets must take the shortest path** — no detours. s1→s5 must be 4 hops, not 5.
+3. **There must be no chance of a broadcast storm** — on a ring topology a naive flood loops forever. Your design must not allow a storm at any stage.
+4. **Any host must be able to ping any other host** — including ARP.
+5. **Once a path is established, every packet must stay on the data plane** — the controller no longer takes part in forwarding. Each unicast packet follows a flow installed on the switch and never reaches the controller.
+6. **The design must scale to hosts being added arbitrarily** — you do not have to implement this, but your report must explain how your design handles a previously unseen host appearing on some switch.
+
+#### Topology
+
+```
+    9 switches in a ring, 9 hosts (h1..h9)
+
+               h1                 Port layout (all switches):
+               |                    port 1 = host
+              s1                    port 2 = clockwise neighbour
+             /    \                 port 3 = counter-clockwise
+      h9---s9      s2---h2
+           |        |             Max shortest path = 4 hops (floor(9/2))
+      h8---s8      s3---h3
+           |        |             s1→s5: clockwise  s1→s2→s3→s4→s5 = 4 hops ✓
+      h7---s7      s4---h4        s1→s5: counter-CW s1→s9→s8→s7→s6→s5 = 5 hops ✗
+             \    /
+              s6--s5
+              |   |
+              h6  h5
+```
+
+Your controller must discover the topology itself — do not assume N=9. You may
+assume **N < 20**; the ring is never larger than that.
+
+#### Design questions
+
+There are **no TODO markers** in `sp_controller.py`. You get two empty methods
+and six requirements. How you satisfy them is up to you. Some things to think
+about:
+
+- How do you discover which switches are connected to each other?
+- How do you discover where hosts are?
+- How do you compute shortest paths on a ring?
+- How do you avoid broadcast storm when flooding on a ring?
+- When do you install flows? How do you ensure unicast stays on the data plane?
+- The 11-switch test uses random MACs. What does that break if you hardcode?
+
+
 ## 2. What you have to change
 
 | File | What to do |
 |---|---|
 | `harness/modes.py` | Four small functions: `capture_filter()` (A0), `flood()`, `normal()`, `proactive()`. |
 | `harness/controller.py` | **The lab.** Ten `TODO`s, `T1`–`T9`: HELLO reply, ECHO reply, FEATURES request/reply, PACKET_IN decoding (fixed fields, OXM match TLVs, Ethernet header), FLOW_MOD and PACKET_OUT encoding, and the learning logic that ties them together. The TCP server loop, message framing, constants and an ERROR decoder are given. |
-| `REPORT.md` | Tables from your own `results/*.json`, the wire analysis (A.0), and Part B. Keep the table row labels — the grader parses them. |
+| `harness/sp_controller.py` | Implement `on_switch_ready()` and `on_packet_in()`. The select() loop, handshake, and OpenFlow encoding/decoding helpers are given — they are the same code from Part A3. Everything else (topology discovery, host learning, path computation, flow installation, broadcast handling) is your design. You may also rewrite the whole file from scratch if you prefer — the given structure is a convenience, not a requirement. |
+| `REPORT.md` | Tables from your own `results/*.json`, the wire analysis (A.0), Part B, and your Part C explanation of how to handle new hosts. Keep the table row labels — the grader parses them. |
 | `ai-usage.md` | How you used AI tools (or that you did not). |
 
 Everything else — `Dockerfile`, `docker-compose.yml`, `Makefile`, `topo/`,
@@ -111,9 +168,11 @@ hints; they were written for the exact mistake you are about to make.
    the switch answers with `OFPT_ERROR`, the given `decode_error()` prints
    what it objected to, and `captures/controller.pcap` sits right next to the
    reference capture for a byte-by-byte comparison.
-4. `REPORT.md`, then `make test`.
+4. `harness/sp_controller.py` for Part C. Use the ring workflow below to
+   develop and inspect your design; `make test` includes both C1 and C2.
+5. `REPORT.md` and `ai-usage.md`, then `make test`.
 
-### Running the controller by hand
+### Running the Part A controller by hand
 
 ```bash
 make shell
@@ -124,6 +183,22 @@ python3 harness/run_mode.py controller --hold       # terminal 2: reuses the run
 Inside the Mininet CLI: `h1 ping -c 3 h2`, `sh ovs-ofctl -O OpenFlow13
 dump-flows s1`, `sh ovs-appctl fdb/show s1`, `h3 tcpdump -nn -c 5 icmp`,
 `sh tcpdump -i lo -nn port 6653`.
+
+### Running the Part C controller by hand
+
+```bash
+# Terminal 1: start your shortest-path controller
+make shell
+python3 harness/sp_controller.py -v
+
+# Terminal 2: start the 9-switch ring (reuses the running controller)
+make shell
+python3 topo/ring_topo.py pingall           # 0% dropped = success
+python3 topo/ring_topo.py cli               # interactive: try pingall, dump-flows
+```
+
+Inside the Mininet CLI: `pingall`, `sh ovs-ofctl -O OpenFlow13 dump-flows s1`,
+`h1 traceroute -n 10.0.0.3`.
 
 ### Reading
 
@@ -137,6 +212,30 @@ dump-flows s1`, `sh ovs-appctl fdb/show s1`, `h3 tcpdump -nn -c 5 icmp`,
 - Wireshark's OpenFlow dissector shows every field name and offset when you
   click a byte in the hex pane. Use it on both captures.
 - `ovs-ofctl` flow syntax — `man ovs-ofctl`, *Flow Syntax*, for A1/A2/A4.
+
+#### Reference: LLDP TLV format
+
+```
+Ethernet header (14 bytes):
+    dst:  01:80:c2:00:00:0e  (LLDP multicast)
+    src:  <6 bytes, e.g. low bytes of dpid>
+    type: 0x88cc
+
+Each TLV:
+    header: 2 bytes = uint16 where top 7 bits = type, low 9 bits = length
+    value:  `length` bytes
+
+TLV type 1 — Chassis ID:
+    subtype byte (use 7 = "locally assigned") + dpid as 8 big-endian bytes
+    → total value length = 1 + 8 = 9
+
+TLV type 2 — Port ID:
+    subtype byte (use 7) + port_no as 4 big-endian bytes
+    → total value length = 1 + 4 = 5
+
+TLV type 0 — End of LLDPDU:
+    length = 0 → the header is just 0x0000 (2 zero bytes)
+```
 
 ## 4. The checks (100 points)
 
@@ -162,6 +261,15 @@ The A3 checks read the **capture**, not your log: what counts is what the
 switch actually received and accepted. Absolute latencies are never graded —
 they differ between laptops and the CI runner — but they are recorded, and
 `REPORT.md` asks about them.
+
+### Part C test topologies
+
+Your controller is tested on **two** topologies:
+
+| Test | Topology | Switches | Host MACs | What it checks |
+|---|---|---|---|---|
+| C1 | `ring_topo.py` | 9 | sequential (`00:...:01`–`09`) | pingall, shortest-path flows, no unicast leak |
+| C2 | `ring11_topo.py` | 11 | **random (different every run)** | same — your controller must not hardcode switch count or MAC patterns |
 
 ## 5. Things that will bite you
 
@@ -194,7 +302,7 @@ they differ between laptops and the CI runner — but they are recorded, and
     very different latency. `REPORT.md` A.2 asks why; the answer is one line
     of code and a classic TCP mechanism.
 
-## 6. The in-person checkpoint and viva (60 % of the lab grade)
+## 6. The in-person checkpoint and viva (50 % of the lab grade)
 
 You will sit at a course VM with **your** repository at its state at the
 deadline, no internet, no AI. Expect to:
@@ -215,116 +323,7 @@ If you wrote `harness/controller.py` yourself and can explain every line,
 nothing at the checkpoint will surprise you. If you cannot, the take-home
 part will be re-examined.
 
-## 7. Part C — Design Problem: Multi-Switch Shortest-Path Controller (20 points)
-
-Your Part A controller manages **one** switch. Part C is a **design problem**:
-nine switches in a ring, and your controller must figure everything out from
-scratch. It is worth 20 of the 100 autograded points (C1 and C2, 10 each) and
-it is the main preparation for the checkpoint.
-
-### Requirements
-
-1. **The controller knows nothing at boot** — it does not know which switches are connected to each other, where the hosts are, or what the topology looks like.
-2. **Unicast packets must take the shortest path** — no detours. s1→s5 must be 4 hops, not 5.
-3. **There must be no chance of a broadcast storm** — on a ring topology a naive flood loops forever. Your design must not allow a storm at any stage.
-4. **Any host must be able to ping any other host** — including ARP.
-5. **Once a path is established, every packet must stay on the data plane** — the controller no longer takes part in forwarding. Each unicast packet follows a flow installed on the switch and never reaches the controller.
-6. **The design must scale to hosts being added arbitrarily** — you do not have to implement this, but your report must explain how your design handles a previously unseen host appearing on some switch.
-
-### Topology
-
-```
-    9 switches in a ring, 9 hosts (h1..h9)
-
-               h1                 Port layout (all switches):
-               |                    port 1 = host
-              s1                    port 2 = clockwise neighbour
-             /    \                 port 3 = counter-clockwise
-      h9---s9      s2---h2
-           |        |             Max shortest path = 4 hops (floor(9/2))
-      h8---s8      s3---h3
-           |        |             s1→s5: clockwise  s1→s2→s3→s4→s5 = 4 hops ✓
-      h7---s7      s4---h4        s1→s5: counter-CW s1→s9→s8→s7→s6→s5 = 5 hops ✗
-             \    /
-              s6--s5
-              |   |
-              h6  h5
-```
-
-### What you change
-
-| File | What to do |
-|---|---|
-| `harness/sp_controller.py` | Implement `on_switch_ready()` and `on_packet_in()`. The select() loop, handshake, and OpenFlow encoding/decoding helpers are given — they are the same code from Part A3. Everything else (topology discovery, host learning, path computation, flow installation, broadcast handling) is your design. You may also rewrite the whole file from scratch if you prefer — the given structure is a convenience, not a requirement. |
-
-`topo/ring_topo.py` and `topo/ring11_topo.py` are given and **must not be modified**.
-
-### How to work
-
-```bash
-# Terminal 1: start your shortest-path controller
-make shell
-python3 harness/sp_controller.py -v
-
-# Terminal 2: start the 9-switch ring (reuses the running controller)
-make shell
-python3 topo/ring_topo.py pingall           # 0% dropped = success
-python3 topo/ring_topo.py cli               # interactive: try pingall, dump-flows
-```
-
-Inside the Mininet CLI: `pingall`, `sh ovs-ofctl -O OpenFlow13 dump-flows s1`,
-`h1 traceroute -n 10.0.0.3`.
-
-### The autograder
-
-Your controller is tested on **two** topologies:
-
-| Test | Topology | Switches | Host MACs | What it checks |
-|---|---|---|---|---|
-| C1 | `ring_topo.py` | 9 | sequential (`00:...:01`–`09`) | pingall, shortest-path flows, no unicast leak |
-| C2 | `ring11_topo.py` | 11 | **random (different every run)** | same — your controller must not hardcode switch count or MAC patterns |
-
-Your controller must discover the topology itself — do not assume N=9. You may
-assume **N < 20**; the ring is never larger than that.
-
-### What makes this a design problem
-
-There are **no TODO markers** in `sp_controller.py`. You get two empty methods
-and six requirements. How you satisfy them is up to you. Some things to think
-about:
-
-- How do you discover which switches are connected to each other? (Hint: LLDP.)
-- How do you discover where hosts are? (Hint: they send traffic.)
-- How do you compute shortest paths on a ring? (Hint: BFS.)
-- How do you avoid broadcast storm when flooding on a ring?
-- When do you install flows? How do you ensure unicast stays on the data plane?
-- The 11-switch test uses random MACs. What does that break if you hardcode?
-
-### Reference: LLDP TLV format
-
-```
-Ethernet header (14 bytes):
-    dst:  01:80:c2:00:00:0e  (LLDP multicast)
-    src:  <6 bytes, e.g. low bytes of dpid>
-    type: 0x88cc
-
-Each TLV:
-    header: 2 bytes = uint16 where top 7 bits = type, low 9 bits = length
-    value:  `length` bytes
-
-TLV type 1 — Chassis ID:
-    subtype byte (use 7 = "locally assigned") + dpid as 8 big-endian bytes
-    → total value length = 1 + 8 = 9
-
-TLV type 2 — Port ID:
-    subtype byte (use 7) + port_no as 4 big-endian bytes
-    → total value length = 1 + 4 = 5
-
-TLV type 0 — End of LLDPDU:
-    length = 0 → the header is just 0x0000 (2 zero bytes)
-```
-
-## 8. Submission
+## 7. Submission
 
 Push to your Classroom repository; every push is autograded and the result
 appears as a Release on your repo. Your last push before the deadline counts.
