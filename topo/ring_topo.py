@@ -40,7 +40,7 @@ import sys
 from functools import partial
 
 from mininet.net import Mininet
-from mininet.node import OVSSwitch
+from mininet.node import OVSSwitch, RemoteController
 from mininet.topo import Topo
 from mininet.link import TCLink
 from mininet.log import setLogLevel, info
@@ -78,12 +78,14 @@ class RingTopo(Topo):
         # Ring: s1-s2, s2-s3, ..., s8-s9, s9-s1
         # port 2 = clockwise, port 3 = counter-clockwise
         for i in range(NUM_SWITCHES):
-            self.addLink(switches[i], switches[(i + 1) % NUM_SWITCHES])
+            nxt = (i + 1) % NUM_SWITCHES
+            self.addLink(switches[i], switches[nxt], port1=2, port2=3)
 
 
 def build_net():
     switch = partial(OVSSwitch, failMode="secure", protocols="OpenFlow13")
-    net = Mininet(topo=RingTopo(), switch=switch, controller=None,
+    net = Mininet(topo=RingTopo(), switch=switch,
+                  controller=lambda name: RemoteController(name, ip="127.0.0.1", port=6653),
                   link=TCLink, autoSetMacs=False, waitConnected=False)
     return net
 
