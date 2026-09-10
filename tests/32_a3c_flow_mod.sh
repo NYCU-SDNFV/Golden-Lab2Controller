@@ -3,4 +3,4 @@
 . "$(dirname "$0")/lib.sh"
 banner "check A3c: FLOW_MOD encoded and accepted"
 [ -f results/controller.json ] || die "results/controller.json is missing" "run check A3a first (make a3)"
-python3 .github/grade/lab2_grade.py a3c
+grade2 a3c

@@ -18,4 +18,4 @@ if ! dexec sh -c "cd /workspace && python3 harness/run_mode.py $MODE 2>&1"; then
 fi
 
 # Grade the JSON it produced (on the host; results/ is the mounted repo).
-python3 .github/grade/lab2_grade.py "$PART"
+grade2 "$PART"

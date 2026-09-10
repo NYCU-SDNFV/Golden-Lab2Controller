@@ -6,4 +6,4 @@ for m in flood normal reference controller proactive; do
   [ -f "results/$m.json" ] || die "results/$m.json is missing" \
       "the report check needs all four runs; run 'make test' (or make a1..a4) first"
 done
-python3 .github/grade/lab2_grade.py report
+grade2 report

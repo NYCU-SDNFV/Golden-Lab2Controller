@@ -3,4 +3,4 @@
 . "$(dirname "$0")/lib.sh"
 banner "check A3b: PACKET_IN decoded, PACKET_OUT encoded"
 [ -f results/controller.json ] || die "results/controller.json is missing" "run check A3a first (make a3)"
-python3 .github/grade/lab2_grade.py a3b
+grade2 a3b

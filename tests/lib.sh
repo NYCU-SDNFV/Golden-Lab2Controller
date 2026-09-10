@@ -26,8 +26,41 @@ dexec() {
   docker exec "$CONTAINER" "$@"
 }
 
+# AppArmor pre-flight。為什麼要查：capability（cap_add）和 LSM（AppArmor）是兩層
+# 不同的東西。容器可以拿到 SYS_ADMIN 卻仍被 docker 預設的 `docker-default` profile
+# 擋掉 mount —— 而 Mininet 建 network namespace 時就要 mount。症狀是 net.start()
+# 靜靜卡死，不報錯，所以沒有這個檢查只會看到 test timeout。
+# 為什麼本機不會遇到：Docker Desktop（Windows/macOS）跑在 LinuxKit VM 上沒有
+# AppArmor；autograder 的 Ubuntu 主機有。
+# 成功時不印任何東西（每個 check 都會呼叫，別洗版）。
+preflight_apparmor() {
+  aa=$(dexec sh -c 'cat /proc/self/attr/current 2>/dev/null' 2>/dev/null \
+       | tr -d '\000' | tr -d '\n' | tr -d '\r')
+  case "$aa" in
+    "" | unconfined*) return 0 ;;
+  esac
+  die "the container is confined by the AppArmor profile '$aa' -- Mininet will hang" \
+      "cap_add grants capabilities, but AppArmor is a separate layer on top.
+      Add   security_opt:
+              - apparmor:unconfined
+      next to your cap_add, or use 'privileged: true' (which turns off both layers).
+      Your laptop probably has no AppArmor, which is why this passes locally
+      and hangs on the autograder."
+}
+
 require_container() {
   container_running || die \
     "container '$CONTAINER' is not running" \
     "check TODO 1 and TODO 4 in docker-compose.yml, then: make up; make logs"
+  preflight_apparmor
+}
+
+# lab2_grade.py 住在哪裡取決於誰在跑：
+#   學生 checkout       -> .github/grade/lab2_grade.py
+#   Classroom 50 bundle -> 跟 test 腳本同一層（canonical，學生改不到）
+# $0 是呼叫端的腳本，所以這裡用 $0 而不是 lib.sh 自己的路徑。
+grade2() {
+  g="$(dirname "$0")/lab2_grade.py"
+  [ -f "$g" ] || g=.github/grade/lab2_grade.py
+  python3 "$g" "$@"
 }

@@ -6,6 +6,7 @@ i=0
 while [ "$i" -lt 30 ]; do
   if container_running && dexec ovs-vsctl show >/dev/null 2>&1; then
     pass "container '$CONTAINER' is running, ovs-vswitchd answers"
+    preflight_apparmor   # 定義在 lib.sh；本 Lab 的 compose 是 privileged，這只是保險
     exit 0
   fi
   i=$((i + 1))
